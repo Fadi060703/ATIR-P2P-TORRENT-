@@ -6,7 +6,7 @@ import (
 )
 
 func main() {
-	var line string = "2:Hi i22e 2:im 7:looking i69e 4:with 3:you"
+	var line string = "i3e 4:test l3:wowi17ee"
 	result := bencode.EVALUATE(line)
 	for _, res := range result {
 		fmt.Printf("%v\n", res)
