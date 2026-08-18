@@ -11,21 +11,23 @@ type DECODED struct {
 	INTVAL    *int64
 	STRINGVAL *string
 	LISTVAL   []DECODED
+	DICVAL    map[string]DECODED
 }
 
 var BASE string = "Hello World"
 
 var CASE_INT_REGEX = regexp.MustCompile(`^i(-?\d+)e$`)
-var CASE_STR_REGEX = regexp.MustCompile(`^(\d+):(.*)`)
+var CASE_STR_REGEX = regexp.MustCompile(`^(\d+):(.*)$`)
 var CASE_LIS_REGEX = regexp.MustCompile(`^l(.*)e$`)
 var CASE_LIS_ITEM = regexp.MustCompile(`i-?\d+e|\d+:[a-zA-Z0-9_]*`)
+var CASE_DIC_REGEX = regexp.MustCompile(`(?s)^d(.*)e$`)
 
 func TOKENIZE(line string) []rune {
 	r := []rune(line)
 	return r
 }
 
-func TOKENIZE_LIST(line string) []string {
+func TOKENIZE_LIST_DICT(line string) []string {
 	var full_tokens = []string{}
 	var cursor = 0
 
@@ -49,25 +51,28 @@ func TOKENIZE_LIST(line string) []string {
 			cursor++
 			cursor += int(len_int)
 			full_tokens = append(full_tokens, line[start:cursor])
-		case 'l':
+
+		case 'l', 'd':
 			start := cursor
 			nest := 0
+
 			for cursor < len(line) {
-				if line[cursor] == 'l' {
+				switch line[cursor] {
+				case 'l', 'd':
 					nest++
 					cursor++
-				} else if line[cursor] == 'e' {
+				case 'e':
 					nest--
 					cursor++
 					if nest == 0 {
-						break
+						goto exitLoop
 					}
-				} else if line[cursor] == 'i' {
+				case 'i':
 					for cursor < len(line) && line[cursor] != 'e' {
 						cursor++
 					}
 					cursor++
-				} else if line[cursor] >= '0' && line[cursor] <= '9' {
+				case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 					strStart := cursor
 					for cursor < len(line) && line[cursor] != ':' {
 						cursor++
@@ -76,10 +81,11 @@ func TOKENIZE_LIST(line string) []string {
 					length, _ := strconv.ParseInt(lenStr, 10, 64)
 					cursor++
 					cursor += int(length)
-				} else {
+				default:
 					cursor++
 				}
 			}
+		exitLoop:
 			full_tokens = append(full_tokens, line[start:cursor])
 		}
 	}
@@ -113,15 +119,34 @@ func DECODE_INT(expr string) int64 {
 
 func DECODE_STR(expr string) string {
 	index := strings.Index(expr, ":")
-	str_val := expr[index : len(expr)-1]
+	str_val := expr[index+1:]
 	return str_val
 }
 
 func DECODE_LIS(expr string) []DECODED {
 	var decoded_items = []DECODED{}
-	items := TOKENIZE_LIST(expr)
+	items := TOKENIZE_LIST_DICT(expr)
 	for _, item := range items {
+		fmt.Printf("Item: %v", item)
 		decoded_items = append(decoded_items, DECODE_SINGLE(item))
+	}
+	return decoded_items
+}
+
+func DECODE_DICT(expr string) map[string]DECODED {
+	var decoded_items = map[string]DECODED{}
+	items := TOKENIZE_LIST_DICT(expr)
+	var temp string
+	for i, item := range items {
+		fmt.Printf("Index: %v , Item: %v", i, temp)
+		if i%2 == 0 {
+			temp = *DECODE_SINGLE(item).STRINGVAL
+			fmt.Printf("%v\n", temp)
+		} else {
+			decoded_items[temp] = DECODE_SINGLE(item)
+			fmt.Printf("%v\n", decoded_items[temp])
+			temp = ""
+		}
 	}
 	return decoded_items
 }
@@ -137,6 +162,9 @@ func DECODE_SINGLE(expr string) DECODED {
 	case CASE_LIS_REGEX.MatchString(expr):
 		lis_val := DECODE_LIS(expr[1 : len(expr)-1])
 		return DECODED{LISTVAL: lis_val}
+	case CASE_DIC_REGEX.MatchString(expr):
+		dic_val := DECODE_DICT(expr[1 : len(expr)-1])
+		return DECODED{DICVAL: dic_val}
 	}
 	return DECODED{}
 }
